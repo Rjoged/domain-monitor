@@ -4,7 +4,7 @@ import requests
 import os
 import time
 
-# DAFTAR DOMAIN
+# DAFTAR LENGKAP DOMAIN DANONE/SN
 DOMAINS = [
     "danone.co.id", "icaresn.co.id", "nutricia.co.id", "nutrishop.co.id", 
     "bebeclub.co.id", "nutriclub.co.id", "danone.id", "vms-sn.id", 
@@ -41,20 +41,20 @@ CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": message}
+    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
-        requests.post(url, data=payload, timeout=10)
+        requests.post(url, data=payload, timeout=15)
     except Exception as e:
         print(f"Gagal kirim Telegram: {e}")
 
 print(f"Memulai pengecekan {len(DOMAINS)} domain...")
-
 now = datetime.datetime.now(datetime.timezone.utc)
+alert_list = []
 
 for dom in DOMAINS:
     try:
-        # Tambahkan jeda 3 detik agar server WHOIS tidak memblokir kita
-        time.sleep(3)
+        # Tambahkan jeda agar tidak kena rate limit server WHOIS
+        time.sleep(2) 
         
         w = whois.whois(dom)
         exp_date = w.expiration_date
@@ -63,20 +63,28 @@ for dom in DOMAINS:
             exp_date = exp_date[0]
             
         if exp_date:
-            # Pastikan format waktu sama (sama-sama punya timezone)
+            # Fix timezone offset-naive vs offset-aware
             if exp_date.tzinfo is None:
                 exp_date = exp_date.replace(tzinfo=datetime.timezone.utc)
             
             days_left = (exp_date - now).days
-            print(f"✅ {dom}: {days_left} hari lagi.")
-            
-            # TEST: Ubah ke 5000 agar PASTI kirim ke Telegram sekarang
-            if days_left <= 5000:
-                send_telegram(f"🔔 LAPORAN DOMAIN\nDomain: {dom}\nSisa: {days_left} hari\nExp: {exp_date.date()}")
+            print(f"✅ {dom}: {days_left} hari.")
+
+            # Kriteria alert (Contoh: sisa kurang dari 60 hari)
+            if days_left <= 60:
+                alert_list.append(f"• *{dom}*: {days_left} hari lagi")
         else:
-            print(f"❓ {dom}: Data tidak ditemukan di server WHOIS.")
-            
+            print(f"❓ {dom}: Expired date tidak ditemukan.")
+
     except Exception as e:
-        print(f"❌ Error pada {dom}: {e}")
+        print(f"❌ Error {dom}: {e}")
+
+# Kirim ringkasan ke Telegram jika ada domain yang mau expired
+if alert_list:
+    full_message = "⚠️ *DOMAIN EXPIRED REPORT*\n\n" + "\n".join(alert_list)
+    send_telegram(full_message)
+    print("Pesan ringkasan dikirim ke Telegram.")
+else:
+    print("Semua domain masih aman (di atas 60 hari). Tidak ada pesan dikirim.")
 
 print("Pengecekan selesai.")
