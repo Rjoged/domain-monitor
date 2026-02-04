@@ -2,8 +2,9 @@ import whois
 import datetime
 import requests
 import os
+import time
 
-# DAFTAR DOMAIN DANONE/SN
+# DAFTAR DOMAIN
 DOMAINS = [
     "danone.co.id", "icaresn.co.id", "nutricia.co.id", "nutrishop.co.id", 
     "bebeclub.co.id", "nutriclub.co.id", "danone.id", "vms-sn.id", 
@@ -42,14 +43,19 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message}
     try:
-        requests.post(url, data=payload)
+        requests.post(url, data=payload, timeout=10)
     except Exception as e:
         print(f"Gagal kirim Telegram: {e}")
 
 print(f"Memulai pengecekan {len(DOMAINS)} domain...")
 
+now = datetime.datetime.now(datetime.timezone.utc)
+
 for dom in DOMAINS:
     try:
+        # Tambahkan jeda 3 detik agar server WHOIS tidak memblokir kita
+        time.sleep(3)
+        
         w = whois.whois(dom)
         exp_date = w.expiration_date
         
@@ -57,19 +63,20 @@ for dom in DOMAINS:
             exp_date = exp_date[0]
             
         if exp_date:
-            days_left = (exp_date - datetime.datetime.now()).days
+            # Pastikan format waktu sama (sama-sama punya timezone)
+            if exp_date.tzinfo is None:
+                exp_date = exp_date.replace(tzinfo=datetime.timezone.utc)
             
-            # Log ke GitHub Console agar bisa dipantau
-            print(f"{dom}: {days_left} hari tersisa.")
+            days_left = (exp_date - now).days
+            print(f"✅ {dom}: {days_left} hari lagi.")
             
-            # Alert jika expired kurang dari 30 hari
-            if days_left <= 30:
-                msg = f"⚠️ ALERT DOMAIN EXPIRED!\n\nDomain: {dom}\nSisa: {days_left} hari\nExp: {exp_date.date()}"
-                send_telegram(msg)
+            # TEST: Ubah ke 5000 agar PASTI kirim ke Telegram sekarang
+            if days_left <= 5000:
+                send_telegram(f"🔔 LAPORAN DOMAIN\nDomain: {dom}\nSisa: {days_left} hari\nExp: {exp_date.date()}")
         else:
-            print(f"Skipping {dom}: Data expired tidak ditemukan.")
+            print(f"❓ {dom}: Data tidak ditemukan di server WHOIS.")
             
     except Exception as e:
-        print(f"Error pada {dom}: {e}")
+        print(f"❌ Error pada {dom}: {e}")
 
 print("Pengecekan selesai.")
