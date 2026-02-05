@@ -71,7 +71,7 @@ for dom in DOMAINS:
             print(f"✅ {dom}: {days_left} hari.")
 
             # Kriteria alert (Contoh: sisa kurang dari 60 hari)
-            if days_left <= 60:
+            if days_left <= 30:
                 alert_list.append(f"• *{dom}*: {days_left} hari lagi")
         else:
             print(f"❓ {dom}: Expired date tidak ditemukan.")
